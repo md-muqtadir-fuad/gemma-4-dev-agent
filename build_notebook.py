@@ -539,10 +539,14 @@ def kernel_metadata(username):
 
 
 def main():
-    global NOTEBOOK_SLUG, NOTEBOOK_TITLE
+    global NOTEBOOK_SLUG, NOTEBOOK_TITLE, SUBMISSION_DIR
     load_dotenv(ROOT / '.env')
     username = os.environ.get('KAGGLE_USERNAME') or 'YOUR_KAGGLE_USERNAME'
     gold_check = '--gold-check' in sys.argv
+    # --submit-only: no dev evaluation, so the notebook runs on CPU and can be pushed and submitted directly
+    submit_only = '--submit-only' in sys.argv
+    if '--agent' in sys.argv:  # build from another agent folder, e.g. agents/public_baseline
+        SUBMISSION_DIR = ROOT / sys.argv[sys.argv.index('--agent') + 1]
     out_dir = OUT_DIR
     if gold_check:  # separate CPU-only notebook that grades every reference solution
         NOTEBOOK_SLUG, NOTEBOOK_TITLE = 'gemma-4-agent-gold-check', 'Gemma 4 Agent Gold Check'
@@ -556,6 +560,10 @@ def main():
                               for line in cell['source']]
         meta.update(enable_gpu=False, keywords=[], model_sources=[])
         meta.pop('machine_shape')
+    if submit_only:
+        for cell in nb['cells']:
+            cell['source'] = [line.replace('RUN_DEV_EVAL = True', 'RUN_DEV_EVAL = False')
+                              for line in cell['source']]
     nb_path = out_dir / f'{NOTEBOOK_SLUG}.ipynb'
     nb_path.write_text(json.dumps(nb, indent=1, ensure_ascii=False) + '\n', encoding='utf-8')
     (out_dir / 'kernel-metadata.json').write_text(json.dumps(meta, indent=2) + '\n', encoding='utf-8')
