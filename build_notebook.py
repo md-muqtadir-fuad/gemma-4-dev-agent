@@ -43,17 +43,16 @@ from pathlib import Path
 # Run the agent on a few public tasks to estimate the resolution rate (interactive runs only)
 RUN_DEV_EVAL = True
 # Before the agent runs, grade each dev task's reference solution to confirm local grading works (CPU only)
-RUN_HARNESS_CHECK = True
+RUN_HARNESS_CHECK = False  # dev tasks are already gold-validated (dev/validated_tasks.txt)
 # Only grade the reference solutions of ALL public tasks (CPU only, no model, no agent)
 GOLD_CHECK_ONLY = False
 # Record the working-tree diff after every tool call (for the anytime curve; dev runs only)
 RECORD_ANYTIME = True
 # Tasks evaluated in parallel during dev runs (the scorer runs them one at a time)
-DEV_CONCURRENCY = 1
+DEV_CONCURRENCY = __DEV_CONCURRENCY__
 # Tasks per repo for the dev run; set DEV_TASK_IDS to a list of instance_ids to pick them yourself
 DEV_TASKS_PER_REPO = {'fastapi/fastapi': 2, 'Textualize/rich': 2, 'psf/requests': 1, 'encode/httpx': 1}
-DEV_TASK_IDS = ['fastapi_9425', 'fastapi_15800', 'rich_4079', 'rich_3930', 'requests_6757', 'httpx_3672',
-                'fastapi_14479', 'fastapi_14986', 'rich_3486', 'requests_7502']
+DEV_TASK_IDS = __DEV_TASK_IDS__
 
 DATA_DIR = Path('/kaggle/input/competitions/gemma-4-developer-agent')
 WHEELHOUSE_DIR = Path('/kaggle/input/datasets/metric/gemma-4-developer-agent-wheelhouse')
@@ -626,6 +625,13 @@ def main():
         out_dir = ROOT / 'kaggle_gold'
     out_dir.mkdir(exist_ok=True)
     nb = build_notebook()
+    # Dev set: tasks whose reference solution passes the local grader (dev/validated_tasks.txt)
+    ids_file = ROOT / 'dev' / 'validated_tasks.txt'
+    dev_ids = ids_file.read_text().split() if ids_file.exists() else []
+    concurrency = sys.argv[sys.argv.index('--concurrency') + 1] if '--concurrency' in sys.argv else '1'
+    for cell in nb['cells']:
+        cell['source'] = [line.replace('__DEV_TASK_IDS__', repr(dev_ids)).replace('__DEV_CONCURRENCY__', concurrency)
+                          for line in cell['source']]
     meta = kernel_metadata(username)
     if gold_check:
         for cell in nb['cells']:

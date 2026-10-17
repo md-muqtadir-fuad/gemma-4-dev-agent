@@ -12,9 +12,10 @@ Chronological record of every run, submission and finding. Raw outputs live in `
 | 2026-10-13 | ANALYSIS | Trace diagnosis of NB v2 | — | Failure modes: no edit before budget end 5/6, compaction amnesia 5/6, whole-file reads 5/6, malformed read_file args 3/6 (14 calls), protected-file edit 1/6 |
 | 2026-10-14 | NB v4 | Dev run, web UI | `submission/` v4 (no read_file, sed reads, edit by call 8, compaction note, NOTES line), 10 dev tasks + gold check | 0/10 resolved; gold check 6/10 (httpx/requests not gradable locally) |
 | 2026-10-17 | RESEARCH | Public notebooks + forum + literature | — | `docs/literature.md`; all 0.18–0.24 entries share one bundle; LB noise ±0.08; tool budget 50→25 costs 14/129 tasks |
-| 2026-10-17 | GOLD v1 | CPU gold check on all 129 public tasks (`gemma-4-agent-gold-check`) | reference patches | running |
+| 2026-10-17 | GOLD v1 | CPU gold check on all 129 public tasks (`gemma-4-agent-gold-check`) | reference patches | **75/129 gradable** (rich 43/48, fastapi 31/67, requests 1/13, httpx 0/1); 24 min CPU; list in `dev/validated_tasks.txt` |
 | 2026-10-17 | NB v6 | Submit-only (CPU) | `agents/public_baseline` (honghanhhh prompt, unchanged) | zip built |
-| 2026-10-17 | SUB (pending) | Submit NB v6 | public baseline | pending |
+| 2026-10-17 | SUB 57318831 | Submit NB v6 | public baseline | pending |
+| 2026-10-17 | NB v7 | E1 anytime run (to start in web UI, L4 x4) | `agents/baseline_b50` (50 calls / 12 min), 75 validated tasks, concurrency 3, anytime recorder on | pending |
 
 ## Planned
 - E1 anytime run: `agents/baseline_b50` (50 calls / 12 min) on gold-validated tasks with the anytime recorder
