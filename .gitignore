@@ -1,0 +1,10 @@
+.env
+kaggle.json
+*.token
+.venv/
+data/
+vendor/
+reference/
+kaggle_runs/
+__pycache__/
+

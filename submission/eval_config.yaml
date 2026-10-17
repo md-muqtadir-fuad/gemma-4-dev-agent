@@ -1,0 +1,7 @@
+# Per-task budgets used by the scorer (Stage 1 inference).
+# The budget numbers are repeated in prompts/system.md -- keep them in sync.
+evaluation:
+  timeout_seconds: 240
+  max_tool_calls: 28
+  max_time_minutes: 8
+  max_turns: 80
