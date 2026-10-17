@@ -561,6 +561,8 @@ def main():
         meta.update(enable_gpu=False, keywords=[], model_sources=[])
         meta.pop('machine_shape')
     if submit_only:
+        meta.update(enable_gpu=False)
+        meta.pop('machine_shape', None)
         for cell in nb['cells']:
             cell['source'] = [line.replace('RUN_DEV_EVAL = True', 'RUN_DEV_EVAL = False')
                               for line in cell['source']]
