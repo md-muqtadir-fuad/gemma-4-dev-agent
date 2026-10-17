@@ -7,6 +7,7 @@ Usage:  .venv\\Scripts\\python.exe build_notebook.py
 """
 import json
 import os
+import sys
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -43,6 +44,8 @@ from pathlib import Path
 RUN_DEV_EVAL = True
 # Before the agent runs, grade each dev task's reference solution to confirm local grading works (CPU only)
 RUN_HARNESS_CHECK = True
+# Only grade the reference solutions of ALL public tasks (CPU only, no model, no agent)
+GOLD_CHECK_ONLY = False
 # Tasks per repo for the dev run; set DEV_TASK_IDS to a list of instance_ids to pick them yourself
 DEV_TASKS_PER_REPO = {'fastapi/fastapi': 2, 'Textualize/rich': 2, 'psf/requests': 1, 'encode/httpx': 1}
 DEV_TASK_IDS = ['fastapi_9425', 'fastapi_15800', 'rich_4079', 'rich_3930', 'requests_6757', 'httpx_3672',
@@ -101,7 +104,7 @@ def list_gpus():
     return [line.strip() for line in out.stdout.splitlines() if line.strip()] if out.returncode == 0 else []
 
 
-if DEV:
+if DEV and not GOLD_CHECK_ONLY:
     gpus = list_gpus()
     print(f'{len(gpus)} GPU(s): ' + '; '.join(gpus) if gpus else 'No GPU found.')
     assert gpus, (
@@ -239,6 +242,8 @@ def pick_dev_tasks():
     from swegemma.models import load_tasks
 
     tasks = load_tasks(DATA_DIR / 'tasks.jsonl')
+    if GOLD_CHECK_ONLY:
+        return tasks
     if DEV_TASK_IDS:
         wanted = set(DEV_TASK_IDS)
         return [t for t in tasks if t.instance_id in wanted]
@@ -312,7 +317,7 @@ def start_vllm(model_name):
     return server, models, adapters
 
 
-if DEV:
+if DEV and not GOLD_CHECK_ONLY:
     if globals().get('server_instance') is not None:
         server_instance.stop()
     server_instance, model_registry, adapter_manifest = start_vllm(DECLARED_MODEL)"""
@@ -407,8 +412,9 @@ HARNESS_CHECK = """def check_harness(tasks):
     return df
 
 
-if DEV and RUN_HARNESS_CHECK:
-    harness_check = check_harness(dev_tasks)"""
+if DEV and (RUN_HARNESS_CHECK or GOLD_CHECK_ONLY):
+    harness_check = check_harness(dev_tasks)
+    harness_check.to_csv(WORKING_DIR / 'gold_check.csv', index=False)"""
 
 RUN_EVAL = """def run_dev_eval(tasks):
     evaluator = make_evaluator(model_registry, adapter_manifest)
@@ -439,7 +445,7 @@ RUN_EVAL = """def run_dev_eval(tasks):
     return df
 
 
-if DEV:
+if DEV and not GOLD_CHECK_ONLY:
     dev_results = run_dev_eval(dev_tasks)
     display(dev_results)"""
 
@@ -533,14 +539,27 @@ def kernel_metadata(username):
 
 
 def main():
+    global NOTEBOOK_SLUG, NOTEBOOK_TITLE
     load_dotenv(ROOT / '.env')
     username = os.environ.get('KAGGLE_USERNAME') or 'YOUR_KAGGLE_USERNAME'
-    OUT_DIR.mkdir(exist_ok=True)
-    nb_path = OUT_DIR / f'{NOTEBOOK_SLUG}.ipynb'
-    nb_path.write_text(json.dumps(build_notebook(), indent=1, ensure_ascii=False) + '\n', encoding='utf-8')
-    (OUT_DIR / 'kernel-metadata.json').write_text(
-        json.dumps(kernel_metadata(username), indent=2) + '\n', encoding='utf-8')
-    print(f'Wrote {nb_path} and {OUT_DIR / "kernel-metadata.json"}')
+    gold_check = '--gold-check' in sys.argv
+    out_dir = OUT_DIR
+    if gold_check:  # separate CPU-only notebook that grades every reference solution
+        NOTEBOOK_SLUG, NOTEBOOK_TITLE = 'gemma-4-agent-gold-check', 'Gemma 4 Agent Gold Check'
+        out_dir = ROOT / 'kaggle_gold'
+    out_dir.mkdir(exist_ok=True)
+    nb = build_notebook()
+    meta = kernel_metadata(username)
+    if gold_check:
+        for cell in nb['cells']:
+            cell['source'] = [line.replace('GOLD_CHECK_ONLY = False', 'GOLD_CHECK_ONLY = True')
+                              for line in cell['source']]
+        meta.update(enable_gpu=False, keywords=[], model_sources=[])
+        meta.pop('machine_shape')
+    nb_path = out_dir / f'{NOTEBOOK_SLUG}.ipynb'
+    nb_path.write_text(json.dumps(nb, indent=1, ensure_ascii=False) + '\n', encoding='utf-8')
+    (out_dir / 'kernel-metadata.json').write_text(json.dumps(meta, indent=2) + '\n', encoding='utf-8')
+    print(f'Wrote {nb_path} and {out_dir / "kernel-metadata.json"}')
 
 
 if __name__ == '__main__':
