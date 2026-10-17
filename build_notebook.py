@@ -46,6 +46,10 @@ RUN_DEV_EVAL = True
 RUN_HARNESS_CHECK = True
 # Only grade the reference solutions of ALL public tasks (CPU only, no model, no agent)
 GOLD_CHECK_ONLY = False
+# Record the working-tree diff after every tool call (for the anytime curve; dev runs only)
+RECORD_ANYTIME = True
+# Tasks evaluated in parallel during dev runs (the scorer runs them one at a time)
+DEV_CONCURRENCY = 1
 # Tasks per repo for the dev run; set DEV_TASK_IDS to a list of instance_ids to pick them yourself
 DEV_TASKS_PER_REPO = {'fastapi/fastapi': 2, 'Textualize/rich': 2, 'psf/requests': 1, 'encode/httpx': 1}
 DEV_TASK_IDS = ['fastapi_9425', 'fastapi_15800', 'rich_4079', 'rich_3930', 'requests_6757', 'httpx_3672',
@@ -379,6 +383,64 @@ def make_evaluator(models, adapter_manifest=None):
     ))
 
 
+SNAPSHOT_TOOLS = ('run_command', 'edit_file', 'write_file')
+# Diff of the working tree vs HEAD, built in a throwaway index so the agent's git state is untouched
+SNAPSHOT_CMD = ('cd /workspace && export GIT_INDEX_FILE=/tmp/_anytime_idx && git read-tree HEAD '
+                '&& git add -A && git diff --cached --binary HEAD')
+
+
+def install_anytime_recorder():
+    \"\"\"Dev-only instrumentation: after every state-changing tool call, store the working-tree diff in
+    results/anytime/<task>.jsonl. Replaying these snapshots through the grader gives the anytime curve
+    P(resolved | agent stopped after call c).\"\"\"
+    import functools
+    import inspect
+    from swegemma.context import SwegemmaContext
+
+    if getattr(SwegemmaContext.create_tools, '_anytime', False):
+        return
+    original = SwegemmaContext.create_tools
+    out_dir = RESULTS_DIR / 'anytime'
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    def record(ctx, tool_name):
+        try:
+            res = ctx.docker.exec(ctx.container_id, SNAPSHOT_CMD, timeout=60)  # same path as the tools
+            diff = getattr(res, 'stdout', '') or ''
+        except Exception as e:  # never let instrumentation break the agent
+            diff = f'__snapshot_error__ {type(e).__name__}: {e}'
+        last = getattr(ctx, '_anytime_last', None)
+        if diff == last:
+            return
+        ctx._anytime_last = diff
+        row = {'call': ctx.tool_calls_used, 'tool': tool_name,
+               'elapsed_s': round(ctx.agent_elapsed_seconds or 0.0, 1), 'diff': diff}
+        with open(out_dir / f'{ctx.task_id}.jsonl', 'a', encoding='utf-8') as f:
+            f.write(json.dumps(row) + '\\n')
+
+    def wrap(ctx, name, fn):
+        if inspect.iscoroutinefunction(fn):
+            @functools.wraps(fn)
+            async def wrapper(*args, **kwargs):
+                result = await fn(*args, **kwargs)
+                record(ctx, name)
+                return result
+        else:
+            @functools.wraps(fn)
+            def wrapper(*args, **kwargs):
+                result = fn(*args, **kwargs)
+                record(ctx, name)
+                return result
+        return wrapper
+
+    def create_tools(self):
+        tools = original(self)
+        return {n: wrap(self, n, f) if n in SNAPSHOT_TOOLS else f for n, f in tools.items()}
+
+    create_tools._anytime = True
+    SwegemmaContext.create_tools = create_tools
+
+
 def save_artifacts(subdir, instance_id, patch, test_output):
     \"\"\"Keep the patch and the grading pytest output of a task for later diagnosis.\"\"\"
     out = RESULTS_DIR / subdir
@@ -417,27 +479,38 @@ if DEV and (RUN_HARNESS_CHECK or GOLD_CHECK_ONLY):
     harness_check.to_csv(WORKING_DIR / 'gold_check.csv', index=False)"""
 
 RUN_EVAL = """def run_dev_eval(tasks):
+    if RECORD_ANYTIME:
+        install_anytime_recorder()
     evaluator = make_evaluator(model_registry, adapter_manifest)
-    rows = []
-    for idx, task in enumerate(tasks, start=1):
-        print(f'[{idx}/{len(tasks)}] {task.instance_id} ({task.repo})...', flush=True)
-        start = time.time()
-        try:
-            r = run_sync(evaluator.evaluate_task, task=task, task_index=idx, total_tasks=len(tasks))
-            save_artifacts('agent', task.instance_id, r.agent_patch, r.test_output)
-            row = {
-                'instance_id': task.instance_id, 'repo': task.repo, 'resolved': bool(r.resolved),
-                'tool_calls': r.tool_calls, 'patch_chars': len((r.agent_patch or '').strip()),
-                'test_exit_code': r.test_exit_code, 'seconds': round(r.duration_seconds, 1),
-                'status': r.status, 'error': r.error_message,
-            }
-        except Exception as e:  # keep going so one broken task does not end the run
-            row = {'instance_id': task.instance_id, 'repo': task.repo, 'resolved': False,
-                   'seconds': round(time.time() - start, 1), 'error': f'{type(e).__name__}: {e}'}
-        rows.append(row)
-        print(f'    -> resolved={row["resolved"]} tool_calls={row.get("tool_calls")} '
-              f'patch_chars={row.get("patch_chars")} {row["seconds"]}s', flush=True)
+    rows_path = WORKING_DIR / 'dev_results.jsonl'  # appended per task, so partial runs keep their results
 
+    async def one(idx, task, sem):
+        async with sem:
+            print(f'[{idx}/{len(tasks)}] start {task.instance_id} ({task.repo})', flush=True)
+            start = time.time()
+            try:
+                r = await evaluator.evaluate_task(task=task, task_index=idx, total_tasks=len(tasks))
+                save_artifacts('agent', task.instance_id, r.agent_patch, r.test_output)
+                row = {
+                    'instance_id': task.instance_id, 'repo': task.repo, 'resolved': bool(r.resolved),
+                    'tool_calls': r.tool_calls, 'patch_chars': len((r.agent_patch or '').strip()),
+                    'test_exit_code': r.test_exit_code, 'seconds': round(r.duration_seconds, 1),
+                    'status': r.status, 'error': r.error_message,
+                }
+            except Exception as e:  # keep going so one broken task does not end the run
+                row = {'instance_id': task.instance_id, 'repo': task.repo, 'resolved': False,
+                       'seconds': round(time.time() - start, 1), 'error': f'{type(e).__name__}: {e}'}
+            with open(rows_path, 'a', encoding='utf-8') as f:
+                f.write(json.dumps(row, default=str) + '\\n')
+            print(f'    {task.instance_id} -> resolved={row["resolved"]} tool_calls={row.get("tool_calls")} '
+                  f'patch_chars={row.get("patch_chars")} {row["seconds"]}s', flush=True)
+            return row
+
+    async def run_all():
+        sem = asyncio.Semaphore(max(1, DEV_CONCURRENCY))
+        return await asyncio.gather(*(one(i, t, sem) for i, t in enumerate(tasks, start=1)))
+
+    rows = run_sync(run_all)
     df = pd.DataFrame(rows)
     df.to_csv(WORKING_DIR / 'dev_results.csv', index=False)
     print(f'\\nResolved {int(df.resolved.sum())}/{len(df)} = {df.resolved.mean():.2%}')
