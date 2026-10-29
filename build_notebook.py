@@ -75,7 +75,7 @@ IS_RERUN = is_scoring_rerun()
 DEV = RUN_DEV_EVAL and not IS_RERUN
 print(f'Scoring re-run: {IS_RERUN} | dev evaluation: {DEV}')
 
-for sub in ('configs', 'prompts'):
+for sub in __SUBDIRS__:
     (AGENT_DIR / sub).mkdir(parents=True, exist_ok=True)"""
 
 PACKAGE = """import zipfile
@@ -628,9 +628,14 @@ def main():
     # Dev set: tasks whose reference solution passes the local grader (dev/validated_tasks.txt)
     ids_file = ROOT / 'dev' / 'validated_tasks.txt'
     dev_ids = ids_file.read_text().split() if ids_file.exists() else []
+    if '--dev-sample' in sys.argv:  # evenly spaced over the sorted list = stratified by repo
+        n = int(sys.argv[sys.argv.index('--dev-sample') + 1])
+        dev_ids = dev_ids[::max(1, len(dev_ids) // n)][:n]
     concurrency = sys.argv[sys.argv.index('--concurrency') + 1] if '--concurrency' in sys.argv else '1'
+    subdirs = sorted({p.parent.relative_to(SUBMISSION_DIR).as_posix() for p in SUBMISSION_DIR.rglob('*')
+                      if p.is_file() and p.parent != SUBMISSION_DIR})
     for cell in nb['cells']:
-        cell['source'] = [line.replace('__DEV_TASK_IDS__', repr(dev_ids)).replace('__DEV_CONCURRENCY__', concurrency)
+        cell['source'] = [line.replace('__SUBDIRS__', repr(tuple(subdirs))).replace('__DEV_TASK_IDS__', repr(dev_ids)).replace('__DEV_CONCURRENCY__', concurrency)
                           for line in cell['source']]
     meta = kernel_metadata(username)
     if gold_check:

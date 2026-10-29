@@ -1,0 +1,7 @@
+# Wall-clock is the binding limit: ~120 tasks x (4.5 min + ~0.5 min setup) = 10 h worst case, under the 12 h cap.
+# The budget numbers are repeated in prompts/system.md -- keep them in sync.
+evaluation:
+  timeout_seconds: 90
+  max_tool_calls: 30
+  max_time_minutes: 4.5
+  max_turns: 60

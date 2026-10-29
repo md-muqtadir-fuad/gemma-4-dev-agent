@@ -17,7 +17,9 @@ Chronological record of every run, submission and finding. Raw outputs live in `
 | 2026-10-17 | SUB 57318831 | Submit NB v6 | public baseline | COMPLETE but **no score** (cause unknown; checked 2026-10-30) |
 | 2026-10-17 | NB v7 | E1 anytime run (to start in web UI, L4 x4) | `agents/baseline_b50` (50 calls / 12 min), 75 validated tasks, concurrency 3, anytime recorder on | not started: Kaggle GPU cap reached 2026-10-18; start next session. 2026-10-30: still never ran; weekly GPU 27.75/30 h used by other projects |
 
-| 2026-10-30 | REVIEW | Critic agent + inventor agent launched on pipeline and new ideas | — | pending |
+| 2026-10-30 | REVIEW | Critic + inventor agents | — | Critic: unscored baseline likely from CPU-only submit notebook (scored v1 came from L4 notebook) and/or 12 h risk; rule 120*(T+0.5)<=11 h -> T<=4.5 min; submit from L4 notebooks; measure on paired fixed subsets. Inventor: Skill-Compressed Single agent (deterministic localizer/view/check skills) + hazard deadline; Ledger Relay (staged fresh contexts) as paper challenger. |
+| 2026-10-30 | EDA v1/v2 | Public EDA `gemma-4-where-does-the-fix-go-eda` (CPU) | tasks/graphs/embeddings | 7.8% gold patches >200 lines; issue names edited symbol in 19-27% (fastapi/rich); 122 tasks have edited symbol in graph; 53% within 2 hops of an issue-mentioned symbol, 89% within 6; safe cap (1 h margin) 34 calls. Made public (v2). |
+| 2026-10-30 | AGENT scs | `agents/scs`: our Skill-Compressed Single agent | skill swe-tools (start/locate/view/check, installed in .git/swe), contract prompt, edit by call 8, 30 calls / 4.5 min / 90 s cmd timeout, thinking 2048 | validated + compiled; ADK wrapper path tested locally; localizer on 3 local snapshots: file@6 3/3, symbol@10 2/3 |
 
 | 2026-10-30 | INTEL | Rules/prizes page + leaderboards | — | Main LB top 0.24 (6-way tie). **Small Model Prize (, Gemma E2B/E4B only): top 0.10** (311 teams). **Paper track () deadline 2026-11-12**; topics: PEFT/RL, code-graph comprehension, tasks/benchmarks, graph reasoning; graph+embedding data encouraged. 12 h limit includes sandbox setup, excludes validation. |
 
