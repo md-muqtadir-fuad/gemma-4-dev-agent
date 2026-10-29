@@ -19,6 +19,8 @@ Chronological record of every run, submission and finding. Raw outputs live in `
 
 | 2026-10-30 | REVIEW | Critic agent + inventor agent launched on pipeline and new ideas | — | pending |
 
+| 2026-10-30 | INTEL | Rules/prizes page + leaderboards | — | Main LB top 0.24 (6-way tie). **Small Model Prize (, Gemma E2B/E4B only): top 0.10** (311 teams). **Paper track () deadline 2026-11-12**; topics: PEFT/RL, code-graph comprehension, tasks/benchmarks, graph reasoning; graph+embedding data encouraged. 12 h limit includes sandbox setup, excludes validation. |
+
 ## Planned
 - E1 anytime run: `agents/baseline_b50` (50 calls / 12 min) on gold-validated tasks with the anytime recorder
   (diff after every tool call) → CPU replay → curve P(resolved | stopped at call c) + per-call timing →
