@@ -14,8 +14,10 @@ Chronological record of every run, submission and finding. Raw outputs live in `
 | 2026-10-17 | RESEARCH | Public notebooks + forum + literature | — | `docs/literature.md`; all 0.18–0.24 entries share one bundle; LB noise ±0.08; tool budget 50→25 costs 14/129 tasks |
 | 2026-10-17 | GOLD v1 | CPU gold check on all 129 public tasks (`gemma-4-agent-gold-check`) | reference patches | **75/129 gradable** (rich 43/48, fastapi 31/67, requests 1/13, httpx 0/1); 24 min CPU; list in `dev/validated_tasks.txt` |
 | 2026-10-17 | NB v6 | Submit-only (CPU) | `agents/public_baseline` (honghanhhh prompt, unchanged) | zip built |
-| 2026-10-17 | SUB 57318831 | Submit NB v6 | public baseline | pending |
-| 2026-10-17 | NB v7 | E1 anytime run (to start in web UI, L4 x4) | `agents/baseline_b50` (50 calls / 12 min), 75 validated tasks, concurrency 3, anytime recorder on | not started: Kaggle GPU cap reached 2026-10-18; start next session |
+| 2026-10-17 | SUB 57318831 | Submit NB v6 | public baseline | COMPLETE but **no score** (cause unknown; checked 2026-10-30) |
+| 2026-10-17 | NB v7 | E1 anytime run (to start in web UI, L4 x4) | `agents/baseline_b50` (50 calls / 12 min), 75 validated tasks, concurrency 3, anytime recorder on | not started: Kaggle GPU cap reached 2026-10-18; start next session. 2026-10-30: still never ran; weekly GPU 27.75/30 h used by other projects |
+
+| 2026-10-30 | REVIEW | Critic agent + inventor agent launched on pipeline and new ideas | — | pending |
 
 ## Planned
 - E1 anytime run: `agents/baseline_b50` (50 calls / 12 min) on gold-validated tasks with the anytime recorder
